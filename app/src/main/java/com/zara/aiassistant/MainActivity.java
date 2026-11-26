@@ -3,6 +3,7 @@ package com.zara.aiassistant;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.provider.Settings;
 import android.provider.MediaStore;
 import android.net.Uri;
@@ -51,8 +52,11 @@ public class MainActivity extends Activity {
         setContentView(layout);
 
         runButton.setOnClickListener(v -> {
+
             String command = commandInput.getText()
-                .toString().toLowerCase(Locale.ROOT).trim();
+                    .toString()
+                    .toLowerCase(Locale.ROOT)
+                    .trim();
 
             if (!command.isEmpty()) {
                 processCommand(command);
@@ -62,21 +66,30 @@ public class MainActivity extends Activity {
 
     private void processCommand(String command) {
 
-        if (command.contains("youtube")) {
+        if (command.contains("facebook lite") ||
+            command.contains("ফেসবুক লাইট")) {
+
+            openApp("com.facebook.lite", "Facebook Lite");
+
+        } else if (command.contains("facebook") ||
+                   command.contains("ফেসবুক")) {
+
+            openApp("com.facebook.katana", "Facebook");
+
+        } else if (command.contains("whatsapp") ||
+                   command.contains("হোয়াটসঅ্যাপ") ||
+                   command.contains("হোয়াটসঅ্যাপ")) {
+
+            openApp("com.whatsapp", "WhatsApp");
+
+        } else if (command.contains("youtube") ||
+                   command.contains("ইউটিউব")) {
 
             openApp("com.google.android.youtube", "YouTube");
 
         } else if (command.contains("chrome")) {
 
             openApp("com.android.chrome", "Chrome");
-
-        } else if (command.contains("facebook")) {
-
-            openApp("com.facebook.katana", "Facebook");
-
-        } else if (command.contains("whatsapp")) {
-
-            openApp("com.whatsapp", "WhatsApp");
 
         } else if (command.contains("camera") ||
                    command.contains("ক্যামেরা")) {
@@ -104,7 +117,7 @@ public class MainActivity extends Activity {
                    command.contains("সময়")) {
 
             String time = new SimpleDateFormat(
-                "hh:mm a", Locale.getDefault()
+                    "hh:mm a", Locale.getDefault()
             ).format(new Date());
 
             status.setText("এখন সময় " + time);
@@ -113,7 +126,7 @@ public class MainActivity extends Activity {
                    command.contains("তারিখ")) {
 
             String date = new SimpleDateFormat(
-                "dd-MM-yyyy", Locale.getDefault()
+                    "dd-MM-yyyy", Locale.getDefault()
             ).format(new Date());
 
             status.setText("আজকের তারিখ " + date);
@@ -134,19 +147,29 @@ public class MainActivity extends Activity {
     private void openApp(String packageName, String appName) {
 
         Intent intent = getPackageManager()
-            .getLaunchIntentForPackage(packageName);
+                .getLaunchIntentForPackage(packageName);
+
+        if (intent == null &&
+            packageName.equals("com.facebook.lite")) {
+
+            intent = getPackageManager()
+                    .getLaunchIntentForPackage("com.facebook.katana");
+        }
 
         if (intent != null) {
 
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
+
             status.setText(appName + " খুলছি।");
 
         } else {
 
             status.setText(appName + " পাওয়া যায়নি।");
+
             Toast.makeText(this,
-                appName + " ইনস্টল করা নেই।",
-                Toast.LENGTH_SHORT).show();
+                    appName + " ইনস্টল করা নেই অথবা শনাক্ত করা যাচ্ছে না।",
+                    Toast.LENGTH_LONG).show();
         }
     }
 
@@ -155,9 +178,12 @@ public class MainActivity extends Activity {
         Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
 
         if (intent.resolveActivity(getPackageManager()) != null) {
+
             startActivity(intent);
             status.setText("Camera খুলছি।");
+
         } else {
+
             status.setText("Camera পাওয়া যায়নি।");
         }
     }
@@ -168,10 +194,18 @@ public class MainActivity extends Activity {
         intent.setType("image/*");
 
         if (intent.resolveActivity(getPackageManager()) != null) {
+
             startActivity(intent);
             status.setText("Gallery খুলছি।");
+
         } else {
+
             status.setText("Gallery পাওয়া যায়নি।");
         }
+    }
+    
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
     }
 }
