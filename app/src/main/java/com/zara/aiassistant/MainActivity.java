@@ -4,6 +4,8 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.content.Intent;
 import android.provider.Settings;
+import android.provider.MediaStore;
+import android.net.Uri;
 import android.view.Gravity;
 import android.widget.*;
 
@@ -31,7 +33,7 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
 
         status = new TextView(this);
-        status.setText("Hello! আমি ZARA। তোমার নির্দেশের অপেক্ষায় আছি।");
+        status.setText("Hello! আমি ZARA। Ready to help you.");
         status.setTextSize(18);
         status.setGravity(Gravity.CENTER);
 
@@ -49,7 +51,6 @@ public class MainActivity extends Activity {
         setContentView(layout);
 
         runButton.setOnClickListener(v -> {
-
             String command = commandInput.getText()
                 .toString().toLowerCase(Locale.ROOT).trim();
 
@@ -61,38 +62,46 @@ public class MainActivity extends Activity {
 
     private void processCommand(String command) {
 
-        if (command.contains("chrome")) {
+        if (command.contains("youtube")) {
 
-            status.setText("Chrome খুলছি...");
-            openApp("com.android.chrome");
+            openApp("com.google.android.youtube", "YouTube");
 
-        }
+        } else if (command.contains("chrome")) {
 
-        else if (command.contains("youtube")) {
+            openApp("com.android.chrome", "Chrome");
 
-            status.setText("YouTube খুলছি...");
-            openApp("com.google.android.youtube");
+        } else if (command.contains("facebook")) {
 
-        }
+            openApp("com.facebook.katana", "Facebook");
 
-        else if (command.contains("settings") ||
-                 command.contains("সেটিংস")) {
+        } else if (command.contains("whatsapp")) {
 
-            status.setText("Settings খুলছি...");
+            openApp("com.whatsapp", "WhatsApp");
+
+        } else if (command.contains("camera") ||
+                   command.contains("ক্যামেরা")) {
+
+            openCamera();
+
+        } else if (command.contains("gallery") ||
+                   command.contains("গ্যালারি")) {
+
+            openGallery();
+
+        } else if (command.contains("settings") ||
+                   command.contains("সেটিংস")) {
+
             startActivity(new Intent(Settings.ACTION_SETTINGS));
+            status.setText("Settings খুলছি।");
 
-        }
+        } else if (command.contains("wifi") ||
+                   command.contains("ওয়াইফাই")) {
 
-        else if (command.contains("wifi") ||
-                 command.contains("ওয়াইফাই")) {
-
-            status.setText("WiFi Settings খুলছি...");
             startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+            status.setText("WiFi Settings খুলছি।");
 
-        }
-
-        else if (command.contains("time") ||
-                 command.contains("সময়")) {
+        } else if (command.contains("time") ||
+                   command.contains("সময়")) {
 
             String time = new SimpleDateFormat(
                 "hh:mm a", Locale.getDefault()
@@ -100,33 +109,29 @@ public class MainActivity extends Activity {
 
             status.setText("এখন সময় " + time);
 
-        }
+        } else if (command.contains("date") ||
+                   command.contains("তারিখ")) {
 
-        else if (command.contains("hello") ||
-                 command.contains("হ্যালো")) {
+            String date = new SimpleDateFormat(
+                "dd-MM-yyyy", Locale.getDefault()
+            ).format(new Date());
+
+            status.setText("আজকের তারিখ " + date);
+
+        } else if (command.contains("hello") ||
+                   command.contains("হ্যালো")) {
 
             status.setText("হ্যালো! আমি ZARA AI।");
 
-        }
+        } else {
 
-        else if (command.contains("stop") ||
-                 command.contains("বন্ধ")) {
-
-            status.setText("ঠিক আছে।");
-
-        }
-
-        else {
-
-            status.setText(
-                "দুঃখিত! এই কমান্ডটি এখনো শিখিনি।"
-            );
+            status.setText("দুঃখিত! এই কমান্ডটি এখনো শিখিনি।");
         }
 
         commandInput.setText("");
     }
 
-    private void openApp(String packageName) {
+    private void openApp(String packageName, String appName) {
 
         Intent intent = getPackageManager()
             .getLaunchIntentForPackage(packageName);
@@ -134,12 +139,39 @@ public class MainActivity extends Activity {
         if (intent != null) {
 
             startActivity(intent);
+            status.setText(appName + " খুলছি।");
 
         } else {
 
+            status.setText(appName + " পাওয়া যায়নি।");
             Toast.makeText(this,
-                "অ্যাপটি পাওয়া যায়নি",
+                appName + " ইনস্টল করা নেই।",
                 Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void openCamera() {
+
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            startActivity(intent);
+            status.setText("Camera খুলছি।");
+        } else {
+            status.setText("Camera পাওয়া যায়নি।");
+        }
+    }
+
+    private void openGallery() {
+
+        Intent intent = new Intent(Intent.ACTION_VIEW);
+        intent.setType("image/*");
+
+        if (intent.resolveActivity(getPackageManager()) != null) {
+            startActivity(intent);
+            status.setText("Gallery খুলছি।");
+        } else {
+            status.setText("Gallery পাওয়া যায়নি।");
         }
     }
 }
