@@ -2,28 +2,27 @@ package com.zara.aiassistant;
 
 import android.app.Activity;
 import android.os.Bundle;
-import android.os.Build;
-import android.Manifest;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.speech.RecognizerIntent;
-import android.provider.Settings;
-import android.provider.MediaStore;
+import android.speech.tts.TextToSpeech;
 import android.view.Gravity;
-import android.widget.*;
+import android.widget.Button;
+import android.widget.LinearLayout;
+import android.widget.TextView;
+import android.widget.Toast;
 
-import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.Locale;
+import java.text.SimpleDateFormat;
+import java.util.Date;
 
 public class MainActivity extends Activity {
 
-    TextView status;
-    EditText commandInput;
+    TextView status, result;
+    Button speakButton;
+    TextToSpeech tts;
 
-    final int SPEECH_REQUEST = 100;
-    final int AUDIO_PERMISSION = 200;
+    boolean ttsReady = false;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,295 +33,205 @@ public class MainActivity extends Activity {
         layout.setGravity(Gravity.CENTER);
         layout.setPadding(30, 30, 30, 30);
 
+        layout.setBackgroundColor(0xFF101820);
+
         TextView title = new TextView(this);
         title.setText("ZARA AI");
         title.setTextSize(32);
+        title.setTextColor(0xFF00E5FF);
         title.setGravity(Gravity.CENTER);
 
         status = new TextView(this);
-        status.setText("আমি ZARA। তোমার কথা শুনতে প্রস্তুত!");
-        status.setTextSize(18);
+        status.setText("Hello! আমি ZARA AI");
+        status.setTextSize(19);
+        status.setTextColor(0xFFFFFFFF);
         status.setGravity(Gravity.CENTER);
+        status.setPadding(10, 40, 10, 30);
 
-        commandInput = new EditText(this);
-        commandInput.setHint("কমান্ড লিখুন / Enter command");
+        result = new TextView(this);
+        result.setText("আমি তোমার কথা শুনছি।");
+        result.setTextSize(17);
+        result.setTextColor(0xFF00E5FF);
+        result.setGravity(Gravity.CENTER);
+        result.setPadding(10, 20, 10, 30);
 
-        Button runButton = new Button(this);
-        runButton.setText("RUN COMMAND");
-
-        Button voiceButton = new Button(this);
-        voiceButton.setText("🎤 SPEAK TO ZARA");
+        speakButton = new Button(this);
+        speakButton.setText("🎤 TALK TO ZARA");
 
         layout.addView(title);
         layout.addView(status);
-        layout.addView(commandInput);
-        layout.addView(runButton);
-        layout.addView(voiceButton);
+        layout.addView(result);
+        layout.addView(speakButton);
 
         setContentView(layout);
 
-        runButton.setOnClickListener(v -> {
-            String command = commandInput.getText()
-                .toString()
-                .toLowerCase(Locale.ROOT)
-                .trim();
+        tts = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int code) {
 
-            if (!command.isEmpty()) {
-                processCommand(command);
+                if (code == TextToSpeech.SUCCESS) {
+
+                    int language = tts.setLanguage(
+                            new Locale("bn", "BD")
+                    );
+
+                    if (language == TextToSpeech.LANG_MISSING_DATA ||
+                        language == TextToSpeech.LANG_NOT_SUPPORTED) {
+
+                        tts.setLanguage(Locale.ENGLISH);
+                    }
+
+                    tts.setSpeechRate(0.95f);
+                    ttsReady = true;
+
+                    speak("Hello! আমি ZARA. How can I help you?");
+                }
             }
         });
 
-        voiceButton.setOnClickListener(v -> checkPermission());
-    }
-
-    private void checkPermission() {
-
-        if (Build.VERSION.SDK_INT >= 23 &&
-            checkSelfPermission(Manifest.permission.RECORD_AUDIO)
-            != PackageManager.PERMISSION_GRANTED) {
-
-            requestPermissions(
-                new String[]{Manifest.permission.RECORD_AUDIO},
-                AUDIO_PERMISSION
-            );
-
-        } else {
-            startListening();
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(
-        int requestCode,
-        String[] permissions,
-        int[] grantResults
-    ) {
-        super.onRequestPermissionsResult(
-            requestCode, permissions, grantResults
-        );
-
-        if (requestCode == AUDIO_PERMISSION &&
-            grantResults.length > 0 &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-
-            startListening();
-
-        } else if (requestCode == AUDIO_PERMISSION) {
-
-            status.setText("মাইক্রোফোন ব্যবহারের অনুমতি প্রয়োজন।");
-        }
+        speakButton.setOnClickListener(v -> startListening());
     }
 
     private void startListening() {
 
         Intent intent = new Intent(
-            RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+                RecognizerIntent.ACTION_RECOGNIZE_SPEECH
         );
 
         intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
         );
 
         intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE,
-            "bn-BD"
+                RecognizerIntent.EXTRA_LANGUAGE,
+                "bn-BD"
         );
 
         intent.putExtra(
-            RecognizerIntent.EXTRA_PROMPT,
-            "ZARA-কে নির্দেশ দিন"
+                RecognizerIntent.EXTRA_PROMPT,
+                "বলুন, আমি শুনছি..."
         );
 
         try {
-
-            status.setText("আমি শুনছি...");
-
-            startActivityForResult(intent, SPEECH_REQUEST);
-
+            startActivityForResult(intent, 100);
+            status.setText("Listening...");
         } catch (Exception e) {
-
-            status.setText("Voice Recognition পাওয়া যাচ্ছে না।");
-
-            Toast.makeText(this,
-                "Speech service পাওয়া যায়নি",
-                Toast.LENGTH_LONG).show();
+            Toast.makeText(
+                    this,
+                    "Speech recognition not available",
+                    Toast.LENGTH_SHORT
+            ).show();
         }
     }
 
     @Override
     protected void onActivityResult(
-        int requestCode,
-        int resultCode,
-        Intent data
-    ) {
+            int requestCode,
+            int resultCode,
+            Intent data) {
+
         super.onActivityResult(requestCode, resultCode, data);
 
-        if (requestCode == SPEECH_REQUEST &&
-            resultCode == RESULT_OK &&
-            data != null) {
+        if (requestCode == 100 && resultCode == RESULT_OK
+                && data != null) {
 
-            ArrayList<String> matches =
-                data.getStringArrayListExtra(
+            ArrayList<String> matches = data.getStringArrayListExtra(
                     RecognizerIntent.EXTRA_RESULTS
-                );
+            );
 
             if (matches != null && !matches.isEmpty()) {
 
-                String command = matches.get(0);
+                String command = matches.get(0).toLowerCase();
 
-                commandInput.setText(command);
+                result.setText("You: " + command);
 
-                status.setText("তুমি বলেছ: " + command);
-
-                processCommand(
-                    command.toLowerCase(Locale.ROOT)
-                );
+                processCommand(command);
             }
         }
     }
 
     private void processCommand(String command) {
 
-        if (command.contains("facebook lite") ||
-            command.contains("ফেসবুক লাইট")) {
+        if (command.contains("সময়") ||
+            command.contains("টাইম") ||
+            command.contains("কয়টা বাজে") ||
+            command.contains("time") ||
+            command.contains("clock")) {
 
-            openApp("com.facebook.lite", "Facebook Lite");
+            tellTime();
+        }
 
-        } else if (command.contains("facebook") ||
-                   command.contains("ফেসবুক")) {
+        else if (command.contains("hello") ||
+                 command.contains("হ্যালো") ||
+                 command.contains("হাই")) {
 
-            openApp("com.facebook.katana", "Facebook");
+            speak("Hello! কেমন আছো? How can I help you?");
+        }
 
-        } else if (command.contains("whatsapp") ||
-                   command.contains("হোয়াটসঅ্যাপ") ||
-                   command.contains("হোয়াটসঅ্যাপ")) {
+        else if (command.contains("তোমার নাম") ||
+                 command.contains("your name")) {
 
-            openApp("com.whatsapp", "WhatsApp");
+            speak("আমার নাম ZARA. I am your AI assistant.");
+        }
 
-        } else if (command.contains("youtube") ||
-                   command.contains("ইউটিউব")) {
+        else if (command.contains("কেমন আছো") ||
+                 command.contains("how are you")) {
 
-            openApp("com.google.android.youtube", "YouTube");
+            speak("আমি ভালো আছি। I am doing great!");
+        }
 
-        } else if (command.contains("chrome")) {
+        else if (command.contains("ধন্যবাদ") ||
+                 command.contains("thank you")) {
 
-            openApp("com.android.chrome", "Chrome");
+            speak("তোমাকে স্বাগতম! You are welcome.");
+        }
 
-        } else if (command.contains("camera") ||
-                   command.contains("ক্যামেরা")) {
+        else {
 
-            openCamera();
+            speak("আমি তোমার কথা বুঝতে পেরেছি। কিন্তু এই command এখনো শিখিনি।");
+        }
+    }
 
-        } else if (command.contains("gallery") ||
-                   command.contains("গ্যালারি")) {
+    private void tellTime() {
 
-            openGallery();
+        SimpleDateFormat format =
+                new SimpleDateFormat("hh:mm a", Locale.ENGLISH);
 
-        } else if (command.contains("settings") ||
-                   command.contains("সেটিংস")) {
+        String currentTime = format.format(new Date());
 
-            startActivity(
-                new Intent(Settings.ACTION_SETTINGS)
-            );
+        String response =
+                "এখন সময় " + currentTime +
+                "। The current time is " + currentTime;
 
-            status.setText("Settings খুলছি।");
+        speak(response);
+    }
 
-        } else if (command.contains("wifi") ||
-                   command.contains("ওয়াইফাই")) {
+    private void speak(String message) {
 
-            startActivity(
-                new Intent(Settings.ACTION_WIFI_SETTINGS)
-            );
+        status.setText("ZARA Speaking...");
 
-            status.setText("Wi-Fi Settings খুলছি।");
+        result.setText("ZARA: " + message);
 
-        } else if (command.contains("time") ||
-                   command.contains("সময়")) {
+        if (ttsReady) {
 
-            String time = new SimpleDateFormat(
-                "hh:mm a", Locale.getDefault()
-            ).format(new Date());
-
-            status.setText("এখন সময় " + time);
-
-        } else if (command.contains("date") ||
-                   command.contains("তারিখ")) {
-
-            String date = new SimpleDateFormat(
-                "dd-MM-yyyy", Locale.getDefault()
-            ).format(new Date());
-
-            status.setText("আজকের তারিখ " + date);
-
-        } else if (command.contains("hello") ||
-                   command.contains("হ্যালো")) {
-
-            status.setText("হ্যালো! আমি ZARA AI।");
-
-        } else {
-
-            status.setText(
-                "দুঃখিত! এই কমান্ডটি এখনো শিখিনি।"
+            tts.speak(
+                    message,
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    "ZARA_SPEECH"
             );
         }
-
-        commandInput.setText("");
     }
 
-    private void openApp(
-        String packageName,
-        String appName
-    ) {
+    @Override
+    protected void onDestroy() {
 
-        Intent intent = getPackageManager()
-            .getLaunchIntentForPackage(packageName);
-
-        if (intent != null) {
-
-            startActivity(intent);
-            status.setText(appName + " খুলছি।");
-
-        } else {
-
-            status.setText(appName + " পাওয়া যায়নি।");
-
-            Toast.makeText(this,
-                appName + " শনাক্ত করা যায়নি।",
-                Toast.LENGTH_SHORT).show();
+        if (tts != null) {
+            tts.stop();
+            tts.shutdown();
         }
+
+        super.onDestroy();
     }
-
-    private void openCamera() {
-
-        Intent intent = new Intent(
-            MediaStore.ACTION_IMAGE_CAPTURE
-        );
-
-        if (intent.resolveActivity(getPackageManager()) != null) {
-
-            startActivity(intent);
-            status.setText("Camera খুলছি।");
-
-        } else {
-
-            status.setText("Camera পাওয়া যায়নি।");
-        }
-    }
-
-    private void openGallery() {
-
-        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
-        intent.setType("image/*");
-
-        try {
-
-            startActivityForResult(intent, 300);
-            status.setText("Gallery খুলছি।");
-
-        } catch (Exception e) {
-
-            status.setText("Gallery পাওয়া যায়নি।");
-        }
-    }
-            }
+}
