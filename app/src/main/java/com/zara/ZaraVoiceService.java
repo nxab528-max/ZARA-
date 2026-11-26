@@ -14,11 +14,6 @@ import android.speech.SpeechRecognizer;
 import android.speech.RecognizerIntent;
 import android.speech.RecognitionListener;
 import android.speech.tts.TextToSpeech;
-import android.speech.SpeechRecognizer;
-import android.Manifest;
-import android.content.Context;
-
-import androidx.core.app.NotificationCompat;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -31,8 +26,11 @@ public class ZaraVoiceService extends Service {
 
     private boolean active = false;
     private boolean ttsReady = false;
+    private boolean awaitingCommand = false;
 
     private static final String CHANNEL_ID = "ZARA_VOICE_CHANNEL";
+
+    private final Runnable listenRunnable = this::startRecognizer;
 
     @Override
     public void onCreate() {
@@ -43,8 +41,17 @@ public class ZaraVoiceService extends Service {
         createNotificationChannel();
 
         tts = new TextToSpeech(this, status -> {
+
             if (status == TextToSpeech.SUCCESS) {
-                tts.setLanguage(new Locale("en", "US"));
+
+                int result = tts.setLanguage(new Locale("bn", "BD"));
+
+                if (result == TextToSpeech.LANG_MISSING_DATA ||
+                        result == TextToSpeech.LANG_NOT_SUPPORTED) {
+
+                    tts.setLanguage(Locale.US);
+                }
+
                 ttsReady = true;
 
                 if (active) {
@@ -54,7 +61,9 @@ public class ZaraVoiceService extends Service {
         });
 
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
+
             recognizer = SpeechRecognizer.createSpeechRecognizer(this);
+
             recognizer.setRecognitionListener(new RecognitionListener() {
 
                 @Override
@@ -74,11 +83,12 @@ public class ZaraVoiceService extends Service {
 
                 @Override
                 public void onError(int error) {
-                    scheduleListening();
+                    scheduleListening(1500);
                 }
 
                 @Override
                 public void onResults(android.os.Bundle results) {
+
                     ArrayList<String> matches =
                             results.getStringArrayList(
                                     SpeechRecognizer.RESULTS_RECOGNITION
@@ -86,13 +96,13 @@ public class ZaraVoiceService extends Service {
 
                     if (matches != null && !matches.isEmpty()) {
                         handleCommand(matches.get(0));
+                    } else {
+                        scheduleListening(1000);
                     }
-
-                    scheduleListening();
                 }
 
                 @Override
-                public void onPartialResults(android.os.Bundle partialResults) {}
+                public void onPartialResults(android.os.Bundle results) {}
 
                 @Override
                 public void onEvent(int eventType, android.os.Bundle params) {}
@@ -103,7 +113,17 @@ public class ZaraVoiceService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
 
-        startForeground(1, buildNotification());
+        if (intent != null && "STOP".equals(intent.getAction())) {
+            stopSelf();
+            return START_NOT_STICKY;
+        }
+
+        if (Build.VERSION.SDK_INT >= 29) {
+            startForeground(1, buildNotification(),
+                    android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE);
+        } else {
+            startForeground(1, buildNotification());
+        }
 
         active = true;
 
@@ -115,16 +135,28 @@ public class ZaraVoiceService extends Service {
     }
 
     private Notification buildNotification() {
-        return new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("ZARA Assistant")
-                .setContentText("ZARA voice service is running")
+
+        if (Build.VERSION.SDK_INT >= 26) {
+            return new Notification.Builder(this, CHANNEL_ID)
+                    .setContentTitle("ZARA AI Assistant")
+                    .setContentText("ZARA is listening")
+                    .setSmallIcon(android.R.drawable.ic_btn_speak_now)
+                    .setOngoing(true)
+                    .build();
+        }
+
+        return new Notification.Builder(this)
+                .setContentTitle("ZARA AI Assistant")
+                .setContentText("ZARA is listening")
                 .setSmallIcon(android.R.drawable.ic_btn_speak_now)
                 .setOngoing(true)
                 .build();
     }
 
     private void createNotificationChannel() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+
+        if (Build.VERSION.SDK_INT >= 26) {
+
             NotificationChannel channel = new NotificationChannel(
                     CHANNEL_ID,
                     "ZARA Voice Assistant",
@@ -139,10 +171,16 @@ public class ZaraVoiceService extends Service {
     }
 
     private void startRecognizer() {
-        if (!active || recognizer == null) return;
+
+        if (!active || !ttsReady || recognizer == null) {
+            return;
+        }
 
         try {
-            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+
+            Intent intent = new Intent(
+                    RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+            );
 
             intent.putExtra(
                     RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -154,19 +192,24 @@ public class ZaraVoiceService extends Service {
                     "bn-BD"
             );
 
-            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false);
+            intent.putExtra(
+                    RecognizerIntent.EXTRA_PARTIAL_RESULTS,
+                    false
+            );
 
             recognizer.startListening(intent);
 
         } catch (Exception e) {
-            scheduleListening();
+            scheduleListening(2000);
         }
     }
 
-    private void scheduleListening() {
+    private void scheduleListening(long delay) {
+
         if (!active) return;
 
-        handler.postDelayed(this::startRecognizer, 1200);
+        handler.removeCallbacks(listenRunnable);
+        handler.postDelayed(listenRunnable, delay);
     }
 
     private void handleCommand(String command) {
@@ -174,33 +217,47 @@ public class ZaraVoiceService extends Service {
         String text = command.toLowerCase(Locale.ROOT);
 
         if (text.contains("hey zara") ||
+                text.contains("hey jara") ||
                 text.contains("হেই জারা") ||
+                text.contains("হে জারা") ||
                 text.contains("হে জারা")) {
 
-            speak("Yes Boss! I'm listening.");
+            awaitingCommand = true;
+
+            speak("Yes Boss! বলুন, কী করতে হবে?",
+                    800);
+
             return;
         }
 
-        if (text.contains("facebook lite") ||
-                text.contains("ফেসবুক লাইট")) {
-
-            openApp("com.facebook.lite");
+        if (!awaitingCommand) {
+            scheduleListening(1000);
+            return;
         }
 
-        else if (text.contains("tiktok") ||
+        awaitingCommand = false;
+
+        if (text.contains("facebook") ||
+                text.contains("ফেসবুক")) {
+
+            openApp("com.facebook.lite",
+                    "Opening Facebook Lite, Boss.");
+
+        } else if (text.contains("tiktok") ||
                 text.contains("টিকটক")) {
 
-            openApp("com.zhiliaoapp.musically");
-        }
+            openApp("com.zhiliaoapp.musically",
+                    "Opening TikTok, Boss.");
 
-        else if (text.contains("youtube") ||
+        } else if (text.contains("youtube") ||
                 text.contains("ইউটিউব")) {
 
-            openApp("com.google.android.youtube");
-        }
+            openApp("com.google.android.youtube",
+                    "Opening YouTube, Boss.");
 
-        else if (text.contains("time") ||
+        } else if (text.contains("time") ||
                 text.contains("সময়") ||
+                text.contains("সময়") ||
                 text.contains("কটা বাজে")) {
 
             java.text.SimpleDateFormat sdf =
@@ -209,15 +266,16 @@ public class ZaraVoiceService extends Service {
                             Locale.getDefault()
                     );
 
-            speak("Boss, time is " + sdf.format(new java.util.Date()));
-        }
+            speak("Boss, এখন সময় " +
+                    sdf.format(new java.util.Date()), 1000);
 
-        else {
-            speak("Sorry Boss, I did not understand.");
+        } else {
+
+            speak("Sorry Boss, বুঝতে পারিনি। আবার বলুন।", 1000);
         }
     }
 
-    private void openApp(String packageName) {
+    private void openApp(String packageName, String message) {
 
         PackageManager pm = getPackageManager();
 
@@ -225,27 +283,64 @@ public class ZaraVoiceService extends Service {
                 pm.getLaunchIntentForPackage(packageName);
 
         if (launchIntent != null) {
+
             launchIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-            startActivity(launchIntent);
-            speak("Opening your app, Boss.");
+
+            try {
+                startActivity(launchIntent);
+                speak(message, 1000);
+            } catch (Exception e) {
+                speak("Boss, app খুলতে পারছি না।", 1000);
+            }
+
         } else {
-            speak("Sorry Boss, app not found.");
+            speak("Boss, app খুঁজে পাচ্ছি না।", 1000);
         }
     }
 
-    private void speak(String message) {
+    private void speak(String message, long delay) {
+
         if (tts != null && ttsReady) {
+
             tts.speak(
                     message,
                     TextToSpeech.QUEUE_FLUSH,
                     null,
                     "ZARA_SPEECH"
             );
+
+            handler.removeCallbacks(listenRunnable);
+
+            tts.setOnUtteranceProgressListener(
+                    new android.speech.tts.UtteranceProgressListener() {
+
+                        @Override
+                        public void onStart(String id) {}
+
+                        @Override
+                        public void onDone(String id) {
+                            handler.post(() ->
+                                    scheduleListening(delay)
+                            );
+                        }
+
+                        @Override
+                        public void onError(String id) {
+                            handler.post(() ->
+                                    scheduleListening(delay)
+                            );
+                        }
+                    }
+            );
+
+        } else {
+            scheduleListening(delay);
         }
     }
 
     @Override
     public void onDestroy() {
+
         active = false;
 
         if (handler != null) {
@@ -269,4 +364,4 @@ public class ZaraVoiceService extends Service {
     public IBinder onBind(Intent intent) {
         return null;
     }
-  }
+}
