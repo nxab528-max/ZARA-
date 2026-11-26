@@ -13,6 +13,10 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.Date;
+import java.text.SimpleDateFormat;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class MainActivity extends Activity {
 
@@ -57,13 +61,12 @@ public class MainActivity extends Activity {
 
         tts = new TextToSpeech(this, value -> {
             if (value == TextToSpeech.SUCCESS) {
-
                 ttsReady = true;
 
                 tts.setSpeechRate(0.85f);
-                tts.setPitch(1.3f);
+                tts.setPitch(1.1f);
 
-                speak("হ্যালো! আমি জারা। Hello! I am Zara.");
+                speak("হ্যালো! Hello! আমি জারা। I am Zara.");
             }
         });
 
@@ -83,6 +86,11 @@ public class MainActivity extends Activity {
 
         intent.putExtra(
             RecognizerIntent.EXTRA_LANGUAGE,
+            "bn-BD"
+        );
+
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,
             "bn-BD"
         );
 
@@ -120,7 +128,7 @@ public class MainActivity extends Activity {
 
                 result.setText("তুমি বলেছ: " + command);
 
-                processCommand(command.toLowerCase());
+                processCommand(command.toLowerCase(Locale.ROOT));
             }
         }
     }
@@ -130,20 +138,20 @@ public class MainActivity extends Activity {
         String reply;
 
         if (command.contains("হ্যালো") ||
-            command.contains("hello")) {
+            command.contains("hello") ||
+            command.contains("hi")) {
 
-            reply = "হ্যালো! আমি জারা। Hello! I am Zara.";
+            reply = "হ্যালো! Hello! আমি জারা। I am Zara.";
         }
 
         else if (command.contains("সময়") ||
                  command.contains("time")) {
 
-            String time =
-                new java.text.SimpleDateFormat(
-                    "hh:mm a", Locale.getDefault()
-                ).format(new java.util.Date());
+            String time = new SimpleDateFormat(
+                "hh:mm a", Locale.getDefault()
+            ).format(new Date());
 
-            reply = "এখন সময় " + time;
+            reply = "এখন সময় " + time + ". The current time is " + time;
         }
 
         else if (command.contains("chrome")) {
@@ -165,6 +173,7 @@ public class MainActivity extends Activity {
         }
 
         else {
+
             reply = "দুঃখিত, আমি এখনো এই কমান্ড শিখিনি। Sorry, I don't know this command yet.";
         }
 
@@ -186,17 +195,28 @@ public class MainActivity extends Activity {
         }
     }
 
+    // বাংলা ও ইংরেজি আলাদা ভয়েসে বলা
     private void speak(String message) {
 
-        if (tts != null && ttsReady) {
+        if (tts == null || !ttsReady) return;
 
-            tts.setSpeechRate(0.85f);
-            tts.setPitch(1.3f);
+        Pattern pattern = Pattern.compile(
+            "[\\u0980-\\u09FF]+|[^\\u0980-\\u09FF]+"
+        );
 
-            boolean hasBangla =
-                message.matches(".*[\\u0980-\\u09FF].*");
+        Matcher matcher = pattern.matcher(message);
 
-            Locale language = hasBangla
+        while (matcher.find()) {
+
+            String part = matcher.group().trim();
+
+            if (part.isEmpty()) continue;
+
+            boolean isBangla = part.matches(
+                ".*[\\u0980-\\u09FF].*"
+            );
+
+            Locale language = isBangla
                 ? new Locale("bn", "BD")
                 : Locale.US;
 
@@ -204,13 +224,18 @@ public class MainActivity extends Activity {
                 >= TextToSpeech.LANG_AVAILABLE) {
 
                 tts.setLanguage(language);
+            } else {
+                tts.setLanguage(Locale.US);
             }
 
+            tts.setSpeechRate(0.85f);
+            tts.setPitch(1.1f);
+
             tts.speak(
-                message,
-                TextToSpeech.QUEUE_FLUSH,
+                part,
+                TextToSpeech.QUEUE_ADD,
                 null,
-                "ZARA_REPLY"
+                "ZARA_" + System.currentTimeMillis()
             );
         }
     }
@@ -225,4 +250,4 @@ public class MainActivity extends Activity {
 
         super.onDestroy();
     }
-}
+                }
