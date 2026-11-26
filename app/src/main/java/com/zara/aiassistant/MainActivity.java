@@ -203,7 +203,7 @@ public class MainActivity extends Activity {
                 .replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
-    // Bengali app name conversion
+    // Bengali and English translation
 
     private String translateCommand(String command) {
 
@@ -214,8 +214,6 @@ public class MainActivity extends Activity {
         command = command.replace("ফেসবুক", "facebook");
         command = command.replace("ফেইসবুক", "facebook");
 
-        command = command.replace("টিকটক লাইট", "tiktok lite");
-        command = command.replace("টিক টক লাইট", "tiktok lite");
         command = command.replace("টিকটক", "tiktok");
         command = command.replace("টিক টক", "tiktok");
 
@@ -232,7 +230,7 @@ public class MainActivity extends Activity {
         return command;
     }
 
-    // Remove command words
+    // Clean command
 
     private String cleanCommand(String command) {
 
@@ -240,31 +238,18 @@ public class MainActivity extends Activity {
 
         String[] removeWords = {
 
-                "open",
-                "launch",
-                "start",
-                "please",
-                "app",
-                "application",
+                "open", "launch", "start",
+                "please", "app", "application",
 
-                "খুলে দাও",
-                "খুলে দে",
-                "খুলে দিন",
-                "খুলে দিও",
-                "খুলে",
-                "খুলো",
-                "খুলুন",
-                "খুল",
-                "চালু করো",
-                "চালু কর",
-                "ওপেন করো",
-                "ওপেন",
-                "দাও",
-                "দিয়ে দাও"
+                "খুলে দাও", "খুলে দে",
+                "খুলে দিন", "খুলে দিও",
+                "খুলে", "খুলো", "খুলুন",
+                "খুল", "চালু করো",
+                "চালু কর", "ওপেন করো",
+                "ওপেন", "দাও", "দিয়ে দাও"
         };
 
         for (String word : removeWords) {
-
             command = command.replace(word, " ");
         }
 
@@ -280,6 +265,7 @@ public class MainActivity extends Activity {
         if (original.contains("সময়") ||
             original.contains("টাইম") ||
             original.contains("কয়টা বাজে") ||
+            original.contains("কটা বাজে") ||
             original.contains("time")) {
 
             tellTime();
@@ -315,13 +301,54 @@ public class MainActivity extends Activity {
 
         String cleaned = cleanCommand(original);
 
+        // FACEBOOK LITE - EXACT PACKAGE
+
+        if (cleaned.equals("facebooklite")) {
+
+            openPackage(
+                    "com.facebook.lite",
+                    "Facebook Lite"
+            );
+
+            return;
+        }
+
+        // FACEBOOK - EXACT PACKAGE
+
+        if (cleaned.equals("facebook")) {
+
+            openPackage(
+                    "com.facebook.katana",
+                    "Facebook"
+            );
+
+            return;
+        }
+
+        // TIKTOK
+
+        if (cleaned.equals("tiktok")) {
+
+            if (!openPackage(
+                    "com.zhiliaoapp.musically",
+                    "TikTok")) {
+
+                openPackage(
+                        "com.ss.android.ugc.trill",
+                        "TikTok"
+                );
+            }
+
+            return;
+        }
+
         if (cleaned.isEmpty()) {
 
             speak("কোন অ্যাপ খুলতে হবে বলো।");
             return;
         }
 
-        // EXACT APP NAME MATCHING
+        // Other installed apps
 
         for (int i = 0; i < appList.size(); i++) {
 
@@ -335,12 +362,42 @@ public class MainActivity extends Activity {
             }
         }
 
-        // No wrong app opening
-
         speak("দুঃখিত, এই নামে কোনো অ্যাপ খুঁজে পাইনি।");
     }
 
-    // Open exact matching app
+    // Open app using package name
+
+    private boolean openPackage(
+            String packageName,
+            String appName) {
+
+        try {
+
+            Intent launch =
+                    pm.getLaunchIntentForPackage(packageName);
+
+            if (launch == null) {
+
+                speak(appName + " পাওয়া যাচ্ছে না।");
+                return false;
+            }
+
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            speak(appName + " খুলছি। Opening " + appName);
+
+            startActivity(launch);
+
+            return true;
+
+        } catch (Exception e) {
+
+            speak(appName + " খুলতে সমস্যা হচ্ছে।");
+            return false;
+        }
+    }
+
+    // Open other apps
 
     private void openApp(ResolveInfo app) {
 
