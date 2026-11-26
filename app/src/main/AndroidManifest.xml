@@ -7,7 +7,12 @@
     <queries>
         <package android:name="com.android.chrome" />
         <package android:name="com.google.android.youtube" />
-    </queries>
+    <queries>
+    <package android:name="com.facebook.katana" />
+    <package android:name="com.whatsapp" />
+    <package android:name="com.facebook.lite" />
+    <package android:name="com.whatsapp.w4b" />
+</queries>
 
     <application
         android:allowBackup="true"
