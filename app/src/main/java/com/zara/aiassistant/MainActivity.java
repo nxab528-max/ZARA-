@@ -20,7 +20,6 @@ public class MainActivity extends Activity {
     TextToSpeech tts;
 
     final int SPEECH_REQUEST = 100;
-
     boolean ttsReady = false;
 
     @Override
@@ -58,8 +57,12 @@ public class MainActivity extends Activity {
 
         tts = new TextToSpeech(this, value -> {
             if (value == TextToSpeech.SUCCESS) {
+
                 ttsReady = true;
-                tts.setLanguage(new Locale("bn", "BD"));
+
+                tts.setSpeechRate(0.85f);
+                tts.setPitch(1.3f);
+
                 speak("হ্যালো! আমি জারা। Hello! I am Zara.");
             }
         });
@@ -68,6 +71,7 @@ public class MainActivity extends Activity {
     }
 
     private void startListening() {
+
         Intent intent = new Intent(
             RecognizerIntent.ACTION_RECOGNIZE_SPEECH
         );
@@ -79,11 +83,6 @@ public class MainActivity extends Activity {
 
         intent.putExtra(
             RecognizerIntent.EXTRA_LANGUAGE,
-            "bn-BD"
-        );
-
-        intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,
             "bn-BD"
         );
 
@@ -116,6 +115,7 @@ public class MainActivity extends Activity {
                 );
 
             if (matches != null && !matches.isEmpty()) {
+
                 String command = matches.get(0);
 
                 result.setText("তুমি বলেছ: " + command);
@@ -190,13 +190,19 @@ public class MainActivity extends Activity {
 
         if (tts != null && ttsReady) {
 
-            Locale language = message.matches(".*[a-zA-Z].*")
-                ? Locale.ENGLISH
-                : new Locale("bn", "BD");
+            tts.setSpeechRate(0.85f);
+            tts.setPitch(1.3f);
 
-            int availability = tts.isLanguageAvailable(language);
+            boolean hasBangla =
+                message.matches(".*[\\u0980-\\u09FF].*");
 
-            if (availability >= TextToSpeech.LANG_AVAILABLE) {
+            Locale language = hasBangla
+                ? new Locale("bn", "BD")
+                : Locale.US;
+
+            if (tts.isLanguageAvailable(language)
+                >= TextToSpeech.LANG_AVAILABLE) {
+
                 tts.setLanguage(language);
             }
 
