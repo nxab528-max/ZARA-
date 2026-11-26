@@ -23,6 +23,7 @@ import java.text.SimpleDateFormat;
 public class MainActivity extends Activity {
 
     TextView status, result;
+
     TextToSpeech tts;
     boolean ttsReady = false;
 
@@ -101,7 +102,7 @@ public class MainActivity extends Activity {
         speakButton.setOnClickListener(v -> startListening());
     }
 
-    // Find installed launcher apps
+    // Load installed apps
 
     private void loadApps() {
 
@@ -122,15 +123,12 @@ public class MainActivity extends Activity {
 
             String name = app.loadLabel(pm).toString();
 
-            if (!appNames.contains(name.toLowerCase(Locale.ROOT))) {
-
-                appNames.add(name.toLowerCase(Locale.ROOT));
-                appList.add(app);
-            }
+            appNames.add(name);
+            appList.add(app);
         }
     }
 
-    // Start voice recognition
+    // Voice recognition
 
     private void startListening() {
 
@@ -197,7 +195,7 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Normalize command and app names
+    // Normalize text
 
     private String normalize(String text) {
 
@@ -205,15 +203,22 @@ public class MainActivity extends Activity {
                 .replaceAll("[^\\p{L}\\p{N}]", "");
     }
 
-    // Translate common Bengali app names
+    // Bengali app name conversion
 
     private String translateCommand(String command) {
 
         command = command.toLowerCase(Locale.ROOT);
 
         command = command.replace("ফেসবুক লাইট", "facebook lite");
+        command = command.replace("ফেইসবুক লাইট", "facebook lite");
         command = command.replace("ফেসবুক", "facebook");
+        command = command.replace("ফেইসবুক", "facebook");
+
+        command = command.replace("টিকটক লাইট", "tiktok lite");
+        command = command.replace("টিক টক লাইট", "tiktok lite");
         command = command.replace("টিকটক", "tiktok");
+        command = command.replace("টিক টক", "tiktok");
+
         command = command.replace("ইউটিউব", "youtube");
         command = command.replace("হোয়াটসঅ্যাপ", "whatsapp");
         command = command.replace("হোয়াটসঅ্যাপ", "whatsapp");
@@ -227,7 +232,46 @@ public class MainActivity extends Activity {
         return command;
     }
 
-    // Process voice commands
+    // Remove command words
+
+    private String cleanCommand(String command) {
+
+        command = translateCommand(command);
+
+        String[] removeWords = {
+
+                "open",
+                "launch",
+                "start",
+                "please",
+                "app",
+                "application",
+
+                "খুলে দাও",
+                "খুলে দে",
+                "খুলে দিন",
+                "খুলে দিও",
+                "খুলে",
+                "খুলো",
+                "খুলুন",
+                "খুল",
+                "চালু করো",
+                "চালু কর",
+                "ওপেন করো",
+                "ওপেন",
+                "দাও",
+                "দিয়ে দাও"
+        };
+
+        for (String word : removeWords) {
+
+            command = command.replace(word, " ");
+        }
+
+        return normalize(command);
+    }
+
+    // Process commands
 
     private void processCommand(String command) {
 
@@ -264,59 +308,39 @@ public class MainActivity extends Activity {
             );
 
             startActivity(settings);
+
             speak("Settings খুলছি।");
             return;
         }
 
-        // Convert Bengali app names
-
-        String cleaned = translateCommand(original);
-
-        // Remove opening words
-
-        String[] removeWords = {
-            "open", "launch", "start",
-            "খুলে দাও", "খুলে দে",
-            "খুলো", "খুলুন", "খুলে",
-            "চালু করো", "চালু কর",
-            "ওপেন করো", "ওপেন",
-            "দাও", "please"
-        };
-
-        for (String word : removeWords) {
-            cleaned = cleaned.replace(word, "");
-        }
-
-        cleaned = normalize(cleaned);
+        String cleaned = cleanCommand(original);
 
         if (cleaned.isEmpty()) {
+
             speak("কোন অ্যাপ খুলতে হবে বলো।");
             return;
         }
 
-        // Search installed apps
+        // EXACT APP NAME MATCHING
 
         for (int i = 0; i < appList.size(); i++) {
 
-            String appName = appNames.get(i);
-            String appNormalized = normalize(appName);
+            String installedName =
+                    normalize(appNames.get(i));
 
-            if (appNormalized.isEmpty()) continue;
-
-            if (cleaned.equals(appNormalized) ||
-                appNormalized.contains(cleaned) ||
-                cleaned.contains(appNormalized)) {
+            if (cleaned.equals(installedName)) {
 
                 openApp(appList.get(i));
                 return;
             }
         }
 
-        speak("দুঃখিত, অ্যাপটি খুঁজে পাইনি। Please try again.");
+        // No wrong app opening
 
+        speak("দুঃখিত, এই নামে কোনো অ্যাপ খুঁজে পাইনি।");
     }
 
-    // Open selected app
+    // Open exact matching app
 
     private void openApp(ResolveInfo app) {
 
@@ -347,12 +371,15 @@ public class MainActivity extends Activity {
         }
     }
 
-    // Tell current time
+    // Current time
 
     private void tellTime() {
 
         SimpleDateFormat format =
-                new SimpleDateFormat("hh:mm a", Locale.ENGLISH);
+                new SimpleDateFormat(
+                        "hh:mm a",
+                        Locale.ENGLISH
+                );
 
         String time = format.format(new Date());
 
@@ -388,4 +415,4 @@ public class MainActivity extends Activity {
 
         super.onDestroy();
     }
-    }
+}
