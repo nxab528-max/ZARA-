@@ -3,8 +3,8 @@ package com.zara.aiassistant;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.Intent;
+import android.content.ComponentName;
 import android.content.pm.PackageManager;
-import android.content.pm.ApplicationInfo;
 import android.content.pm.ResolveInfo;
 import android.speech.RecognizerIntent;
 import android.speech.tts.TextToSpeech;
@@ -15,6 +15,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Date;
 import java.text.SimpleDateFormat;
@@ -28,7 +29,7 @@ public class MainActivity extends Activity {
     PackageManager pm;
 
     ArrayList<String> appNames = new ArrayList<>();
-    ArrayList<String> packageNames = new ArrayList<>();
+    ArrayList<ResolveInfo> appList = new ArrayList<>();
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -51,11 +52,11 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
 
         status = new TextView(this);
-        status.setText("Hello! আমি ZARA");
+        status.setText("ZARA Ready");
         status.setTextSize(20);
         status.setTextColor(0xFFFFFFFF);
         status.setGravity(Gravity.CENTER);
-        status.setPadding(10, 40, 10, 30);
+        status.setPadding(10, 40, 10, 20);
 
         result = new TextView(this);
         result.setText("আমি তোমার কথা শুনছি।");
@@ -74,6 +75,8 @@ public class MainActivity extends Activity {
 
         setContentView(layout);
 
+        status.setText("ZARA Ready | Apps: " + appNames.size());
+
         tts = new TextToSpeech(this, code -> {
 
             if (code == TextToSpeech.SUCCESS) {
@@ -83,7 +86,7 @@ public class MainActivity extends Activity {
                 );
 
                 if (language == TextToSpeech.LANG_MISSING_DATA ||
-                        language == TextToSpeech.LANG_NOT_SUPPORTED) {
+                    language == TextToSpeech.LANG_NOT_SUPPORTED) {
 
                     tts.setLanguage(Locale.ENGLISH);
                 }
@@ -98,30 +101,36 @@ public class MainActivity extends Activity {
         speakButton.setOnClickListener(v -> startListening());
     }
 
-    // Load installed launchable apps
+    // Find installed launcher apps
 
     private void loadApps() {
 
         appNames.clear();
-        packageNames.clear();
+        appList.clear();
 
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.addCategory(Intent.CATEGORY_LAUNCHER);
 
-        java.util.List<ResolveInfo> apps =
+        List<ResolveInfo> apps =
                 pm.queryIntentActivities(intent, 0);
 
         for (ResolveInfo app : apps) {
 
-            String name = app.loadLabel(pm).toString();
-            String packageName = app.activityInfo.packageName;
+            if (app.activityInfo == null) continue;
 
-            appNames.add(name);
-            packageNames.add(packageName);
+            if (!app.activityInfo.enabled) continue;
+
+            String name = app.loadLabel(pm).toString();
+
+            if (!appNames.contains(name.toLowerCase(Locale.ROOT))) {
+
+                appNames.add(name.toLowerCase(Locale.ROOT));
+                appList.add(app);
+            }
         }
     }
 
-    // Voice recognition
+    // Start voice recognition
 
     private void startListening() {
 
@@ -140,8 +149,13 @@ public class MainActivity extends Activity {
         );
 
         intent.putExtra(
+                RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,
+                "bn-BD"
+        );
+
+        intent.putExtra(
                 RecognizerIntent.EXTRA_PROMPT,
-                "বলুন, আমি শুনছি"
+                "বলুন, আমি শুনছি..."
         );
 
         try {
@@ -164,8 +178,8 @@ public class MainActivity extends Activity {
         super.onActivityResult(requestCode, resultCode, data);
 
         if (requestCode == 100 &&
-                resultCode == RESULT_OK &&
-                data != null) {
+            resultCode == RESULT_OK &&
+            data != null) {
 
             ArrayList<String> matches =
                     data.getStringArrayListExtra(
@@ -174,9 +188,7 @@ public class MainActivity extends Activity {
 
             if (matches != null && !matches.isEmpty()) {
 
-                String command = matches.get(0).toLowerCase(
-                        Locale.ROOT
-                );
+                String command = matches.get(0);
 
                 result.setText("You: " + command);
 
@@ -185,120 +197,162 @@ public class MainActivity extends Activity {
         }
     }
 
+    // Normalize command and app names
+
+    private String normalize(String text) {
+
+        return text.toLowerCase(Locale.ROOT)
+                .replaceAll("[^\\p{L}\\p{N}]", "");
+    }
+
+    // Translate common Bengali app names
+
+    private String translateCommand(String command) {
+
+        command = command.toLowerCase(Locale.ROOT);
+
+        command = command.replace("ফেসবুক লাইট", "facebook lite");
+        command = command.replace("ফেসবুক", "facebook");
+        command = command.replace("টিকটক", "tiktok");
+        command = command.replace("ইউটিউব", "youtube");
+        command = command.replace("হোয়াটসঅ্যাপ", "whatsapp");
+        command = command.replace("হোয়াটসঅ্যাপ", "whatsapp");
+        command = command.replace("ইমো", "imo");
+        command = command.replace("ইনস্টাগ্রাম", "instagram");
+        command = command.replace("মেসেঞ্জার", "messenger");
+        command = command.replace("ক্রোম", "chrome");
+        command = command.replace("ক্যামেরা", "camera");
+        command = command.replace("প্লে স্টোর", "play store");
+
+        return command;
+    }
+
     // Process voice commands
 
     private void processCommand(String command) {
 
-        if (command.contains("সময়") ||
-                command.contains("টাইম") ||
-                command.contains("কয়টা বাজে") ||
-                command.contains("time")) {
+        String original = command.toLowerCase(Locale.ROOT);
+
+        if (original.contains("সময়") ||
+            original.contains("টাইম") ||
+            original.contains("কয়টা বাজে") ||
+            original.contains("time")) {
 
             tellTime();
             return;
         }
 
-        if (command.contains("তোমার নাম") ||
-                command.contains("your name")) {
+        if (original.contains("তোমার নাম") ||
+            original.contains("your name")) {
 
             speak("আমার নাম ZARA. I am your AI assistant.");
             return;
         }
 
-        if (command.contains("কেমন আছো") ||
-                command.contains("how are you")) {
+        if (original.contains("কেমন আছো") ||
+            original.contains("how are you")) {
 
             speak("আমি ভালো আছি। I am doing great!");
             return;
         }
 
-        if (command.contains("settings") ||
-                command.contains("সেটিংস")) {
+        if (original.contains("সেটিংস") ||
+            original.contains("settings")) {
 
             Intent settings = new Intent(
                     android.provider.Settings.ACTION_SETTINGS
             );
 
             startActivity(settings);
-            speak("সেটিংস খুলছি। Opening Settings.");
+            speak("Settings খুলছি।");
             return;
         }
 
-        if (command.contains("বন্ধ করো") ||
-                command.contains("stop")) {
+        // Convert Bengali app names
 
-            speak("ঠিক আছে।");
+        String cleaned = translateCommand(original);
+
+        // Remove opening words
+
+        String[] removeWords = {
+            "open", "launch", "start",
+            "খুলে দাও", "খুলে দে",
+            "খুলো", "খুলুন", "খুলে",
+            "চালু করো", "চালু কর",
+            "ওপেন করো", "ওপেন",
+            "দাও", "please"
+        };
+
+        for (String word : removeWords) {
+            cleaned = cleaned.replace(word, "");
+        }
+
+        cleaned = normalize(cleaned);
+
+        if (cleaned.isEmpty()) {
+            speak("কোন অ্যাপ খুলতে হবে বলো।");
             return;
         }
 
-        // Search installed apps by name
+        // Search installed apps
 
-        String cleaned = command
-                .replace("open", "")
-                .replace("খুলে দাও", "")
-                .replace("খুলো", "")
-                .replace("খুলুন", "")
-                .replace("খোল", "")
-                .replace("চালু করো", "")
-                .replace("চালু কর", "")
-                .replace("ওপেন করো", "")
-                .replace("ওপেন", "")
-                .replace("দাও", "")
-                .replace("please", "")
-                .trim();
+        for (int i = 0; i < appList.size(); i++) {
 
-        boolean found = false;
+            String appName = appNames.get(i);
+            String appNormalized = normalize(appName);
 
-        for (int i = 0; i < appNames.size(); i++) {
+            if (appNormalized.isEmpty()) continue;
 
-            String appName = appNames.get(i).toLowerCase(
-                    Locale.ROOT
-            );
+            if (cleaned.equals(appNormalized) ||
+                appNormalized.contains(cleaned) ||
+                cleaned.contains(appNormalized)) {
 
-            if (cleaned.equals(appName) ||
-                    cleaned.contains(appName) ||
-                    appName.contains(cleaned)) {
-
-                openApp(packageNames.get(i), appNames.get(i));
-                found = true;
-                break;
+                openApp(appList.get(i));
+                return;
             }
         }
 
-        if (!found) {
+        speak("দুঃখিত, অ্যাপটি খুঁজে পাইনি। Please try again.");
 
-            speak("দুঃখিত, অ্যাপটি খুঁজে পাইনি। Please try again.");
+    }
+
+    // Open selected app
+
+    private void openApp(ResolveInfo app) {
+
+        try {
+
+            String name = app.loadLabel(pm).toString();
+
+            Intent launch = new Intent(Intent.ACTION_MAIN);
+
+            launch.addCategory(Intent.CATEGORY_LAUNCHER);
+
+            launch.setComponent(
+                    new ComponentName(
+                            app.activityInfo.packageName,
+                            app.activityInfo.name
+                    )
+            );
+
+            launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            speak(name + " খুলছি। Opening " + name);
+
+            startActivity(launch);
+
+        } catch (Exception e) {
+
+            speak("অ্যাপটি খুলতে সমস্যা হচ্ছে।");
         }
     }
 
-    // Open any matching installed app
-
-    private void openApp(String packageName, String appName) {
-
-        Intent launchIntent =
-                pm.getLaunchIntentForPackage(packageName);
-
-        if (launchIntent != null) {
-
-            speak(appName + " খুলছি। Opening " + appName);
-
-            startActivity(launchIntent);
-
-        } else {
-
-            speak("এই অ্যাপটি চালু করা যাচ্ছে না।");
-        }
-    }
-
-    // Current time
+    // Tell current time
 
     private void tellTime() {
 
         SimpleDateFormat format =
-                new SimpleDateFormat(
-                        "hh:mm a",
-                        Locale.ENGLISH
-                );
+                new SimpleDateFormat("hh:mm a", Locale.ENGLISH);
 
         String time = format.format(new Date());
 
@@ -334,4 +388,4 @@ public class MainActivity extends Activity {
 
         super.onDestroy();
     }
-}
+    }
