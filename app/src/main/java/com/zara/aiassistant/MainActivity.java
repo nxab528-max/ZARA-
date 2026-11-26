@@ -15,9 +15,7 @@ import android.widget.LinearLayout;
 public class MainActivity extends Activity {
 
     TextView status;
-
-    Button startButton;
-    Button stopButton;
+    Button startButton, stopButton;
 
     private static final int PERMISSION_CODE = 100;
 
@@ -26,14 +24,12 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         LinearLayout layout = new LinearLayout(this);
-
         layout.setOrientation(LinearLayout.VERTICAL);
         layout.setGravity(Gravity.CENTER);
         layout.setPadding(30, 30, 30, 30);
         layout.setBackgroundColor(Color.BLACK);
 
         status = new TextView(this);
-
         status.setText("ZARA AI\n\nVoice Assistant");
         status.setTextSize(26);
         status.setTextColor(Color.WHITE);
@@ -58,13 +54,40 @@ public class MainActivity extends Activity {
 
     private void checkPermissions() {
 
-        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+        if (Build.VERSION.SDK_INT >= 33) {
+
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                    != PackageManager.PERMISSION_GRANTED) {
+
+                requestPermissions(
+                        new String[]{
+                                Manifest.permission.RECORD_AUDIO,
+                                Manifest.permission.POST_NOTIFICATIONS
+                        },
+                        PERMISSION_CODE
+                );
+
+                return;
+            }
+
+            if (checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                    != PackageManager.PERMISSION_GRANTED) {
+
+                requestPermissions(
+                        new String[]{
+                                Manifest.permission.POST_NOTIFICATIONS
+                        },
+                        PERMISSION_CODE
+                );
+
+                return;
+            }
+
+        } else if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
                 != PackageManager.PERMISSION_GRANTED) {
 
             requestPermissions(
-                    new String[]{
-                            Manifest.permission.RECORD_AUDIO
-                    },
+                    new String[]{Manifest.permission.RECORD_AUDIO},
                     PERMISSION_CODE
             );
 
@@ -76,41 +99,28 @@ public class MainActivity extends Activity {
 
     private void startZara() {
 
-        Intent intent = new Intent(
-                MainActivity.this,
-                ZaraVoiceService.class
-        );
-
+        Intent intent = new Intent(this, ZaraVoiceService.class);
         intent.setAction("START");
 
         try {
-
             if (Build.VERSION.SDK_INT >= 26) {
                 startForegroundService(intent);
             } else {
                 startService(intent);
             }
 
-            status.setText(
-                    "ZARA IS ACTIVE\n\nSay Hey ZARA!"
-            );
+            status.setText("ZARA IS ACTIVE\n\nSay Hey ZARA!");
 
         } catch (Exception e) {
-
             status.setText("Unable to start ZARA");
         }
     }
 
     private void stopZara() {
 
-        Intent intent = new Intent(
-                MainActivity.this,
-                ZaraVoiceService.class
-        );
+        Intent intent = new Intent(this, ZaraVoiceService.class);
 
-        intent.setAction("STOP");
-
-        startService(intent);
+        stopService(intent);
 
         status.setText("ZARA STOPPED");
     }
@@ -122,20 +132,19 @@ public class MainActivity extends Activity {
             int[] grantResults) {
 
         super.onRequestPermissionsResult(
-                requestCode,
-                permissions,
-                grantResults
+                requestCode, permissions, grantResults
         );
 
-        if (requestCode == PERMISSION_CODE &&
-                grantResults.length > 0 &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+        if (requestCode == PERMISSION_CODE) {
 
-            startZara();
+            if (checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_GRANTED) {
 
-        } else {
+                checkPermissions();
 
-            status.setText("Microphone Permission Required");
+            } else {
+                status.setText("Microphone Permission Required");
+            }
         }
     }
 }
