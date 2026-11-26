@@ -3,28 +3,18 @@ package com.zara.aiassistant;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.Intent;
-import android.speech.RecognizerIntent;
-import android.speech.tts.TextToSpeech;
+import android.provider.Settings;
 import android.view.Gravity;
-import android.widget.Button;
-import android.widget.LinearLayout;
-import android.widget.TextView;
-import android.widget.Toast;
+import android.widget.*;
 
-import java.util.ArrayList;
-import java.util.Locale;
-import java.util.Date;
 import java.text.SimpleDateFormat;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+import java.util.Date;
+import java.util.Locale;
 
 public class MainActivity extends Activity {
 
-    TextView status, result;
-    TextToSpeech tts;
-
-    final int SPEECH_REQUEST = 100;
-    boolean ttsReady = false;
+    TextView status;
+    EditText commandInput;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -41,213 +31,115 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
 
         status = new TextView(this);
-        status.setText("আমি ZARA। তোমার কথা শুনতে প্রস্তুত!");
+        status.setText("Hello! আমি ZARA। তোমার নির্দেশের অপেক্ষায় আছি।");
         status.setTextSize(18);
         status.setGravity(Gravity.CENTER);
 
-        result = new TextView(this);
-        result.setTextSize(18);
-        result.setGravity(Gravity.CENTER);
+        commandInput = new EditText(this);
+        commandInput.setHint("কমান্ড লিখুন / Enter command");
 
-        Button speakButton = new Button(this);
-        speakButton.setText("🎤 কথা বলুন / Speak");
+        Button runButton = new Button(this);
+        runButton.setText("RUN COMMAND");
 
         layout.addView(title);
         layout.addView(status);
-        layout.addView(result);
-        layout.addView(speakButton);
+        layout.addView(commandInput);
+        layout.addView(runButton);
 
         setContentView(layout);
 
-        tts = new TextToSpeech(this, value -> {
-            if (value == TextToSpeech.SUCCESS) {
-                ttsReady = true;
+        runButton.setOnClickListener(v -> {
 
-                tts.setSpeechRate(0.85f);
-                tts.setPitch(1.1f);
+            String command = commandInput.getText()
+                .toString().toLowerCase(Locale.ROOT).trim();
 
-                speak("হ্যালো! Hello! আমি জারা। I am Zara.");
+            if (!command.isEmpty()) {
+                processCommand(command);
             }
         });
-
-        speakButton.setOnClickListener(v -> startListening());
-    }
-
-    private void startListening() {
-
-        Intent intent = new Intent(
-            RecognizerIntent.ACTION_RECOGNIZE_SPEECH
-        );
-
-        intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
-            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
-        );
-
-        intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE,
-            "bn-BD"
-        );
-
-        intent.putExtra(
-            RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE,
-            "bn-BD"
-        );
-
-        intent.putExtra(
-            RecognizerIntent.EXTRA_PROMPT,
-            "ZARA-কে কিছু বলুন / Speak to Zara"
-        );
-
-        try {
-            startActivityForResult(intent, SPEECH_REQUEST);
-        } catch (Exception e) {
-            Toast.makeText(this,
-                "Speech Recognition পাওয়া যাচ্ছে না",
-                Toast.LENGTH_LONG).show();
-        }
-    }
-
-    @Override
-    protected void onActivityResult(
-        int requestCode, int resultCode, Intent data
-    ) {
-        super.onActivityResult(requestCode, resultCode, data);
-
-        if (requestCode == SPEECH_REQUEST &&
-            resultCode == RESULT_OK && data != null) {
-
-            ArrayList<String> matches =
-                data.getStringArrayListExtra(
-                    RecognizerIntent.EXTRA_RESULTS
-                );
-
-            if (matches != null && !matches.isEmpty()) {
-
-                String command = matches.get(0);
-
-                result.setText("তুমি বলেছ: " + command);
-
-                processCommand(command.toLowerCase(Locale.ROOT));
-            }
-        }
     }
 
     private void processCommand(String command) {
 
-        String reply;
+        if (command.contains("chrome")) {
 
-        if (command.contains("হ্যালো") ||
-            command.contains("hello") ||
-            command.contains("hi")) {
+            status.setText("Chrome খুলছি...");
+            openApp("com.android.chrome");
 
-            reply = "হ্যালো! Hello! আমি জারা। I am Zara.";
         }
 
-        else if (command.contains("সময়") ||
-                 command.contains("time")) {
+        else if (command.contains("youtube")) {
+
+            status.setText("YouTube খুলছি...");
+            openApp("com.google.android.youtube");
+
+        }
+
+        else if (command.contains("settings") ||
+                 command.contains("সেটিংস")) {
+
+            status.setText("Settings খুলছি...");
+            startActivity(new Intent(Settings.ACTION_SETTINGS));
+
+        }
+
+        else if (command.contains("wifi") ||
+                 command.contains("ওয়াইফাই")) {
+
+            status.setText("WiFi Settings খুলছি...");
+            startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
+
+        }
+
+        else if (command.contains("time") ||
+                 command.contains("সময়")) {
 
             String time = new SimpleDateFormat(
                 "hh:mm a", Locale.getDefault()
             ).format(new Date());
 
-            reply = "এখন সময় " + time + ". The current time is " + time;
+            status.setText("এখন সময় " + time);
+
         }
 
-        else if (command.contains("chrome")) {
+        else if (command.contains("hello") ||
+                 command.contains("হ্যালো")) {
 
-            reply = "Chrome খুলছি। Opening Chrome.";
-            openApp("com.android.chrome");
+            status.setText("হ্যালো! আমি ZARA AI।");
+
         }
 
-        else if (command.contains("youtube")) {
+        else if (command.contains("stop") ||
+                 command.contains("বন্ধ")) {
 
-            reply = "YouTube খুলছি। Opening YouTube.";
-            openApp("com.google.android.youtube");
-        }
+            status.setText("ঠিক আছে।");
 
-        else if (command.contains("বন্ধ") ||
-                 command.contains("stop")) {
-
-            reply = "ঠিক আছে। Okay.";
         }
 
         else {
 
-            reply = "দুঃখিত, আমি এখনো এই কমান্ড শিখিনি। Sorry, I don't know this command yet.";
+            status.setText(
+                "দুঃখিত! এই কমান্ডটি এখনো শিখিনি।"
+            );
         }
 
-        status.setText(reply);
-        speak(reply);
+        commandInput.setText("");
     }
 
     private void openApp(String packageName) {
 
-        Intent launchIntent =
-            getPackageManager().getLaunchIntentForPackage(packageName);
+        Intent intent = getPackageManager()
+            .getLaunchIntentForPackage(packageName);
 
-        if (launchIntent != null) {
-            startActivity(launchIntent);
+        if (intent != null) {
+
+            startActivity(intent);
+
         } else {
+
             Toast.makeText(this,
                 "অ্যাপটি পাওয়া যায়নি",
                 Toast.LENGTH_SHORT).show();
         }
     }
-
-    // বাংলা ও ইংরেজি আলাদা ভয়েসে বলা
-    private void speak(String message) {
-
-        if (tts == null || !ttsReady) return;
-
-        Pattern pattern = Pattern.compile(
-            "[\\u0980-\\u09FF]+|[^\\u0980-\\u09FF]+"
-        );
-
-        Matcher matcher = pattern.matcher(message);
-
-        while (matcher.find()) {
-
-            String part = matcher.group().trim();
-
-            if (part.isEmpty()) continue;
-
-            boolean isBangla = part.matches(
-                ".*[\\u0980-\\u09FF].*"
-            );
-
-            Locale language = isBangla
-                ? new Locale("bn", "BD")
-                : Locale.US;
-
-            if (tts.isLanguageAvailable(language)
-                >= TextToSpeech.LANG_AVAILABLE) {
-
-                tts.setLanguage(language);
-            } else {
-                tts.setLanguage(Locale.US);
-            }
-
-            tts.setSpeechRate(0.85f);
-            tts.setPitch(1.1f);
-
-            tts.speak(
-                part,
-                TextToSpeech.QUEUE_ADD,
-                null,
-                "ZARA_" + System.currentTimeMillis()
-            );
-        }
-    }
-
-    @Override
-    protected void onDestroy() {
-
-        if (tts != null) {
-            tts.stop();
-            tts.shutdown();
-        }
-
-        super.onDestroy();
-    }
-                }
+}
