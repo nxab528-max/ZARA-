@@ -2,15 +2,18 @@ package com.zara.aiassistant;
 
 import android.app.Activity;
 import android.os.Bundle;
+import android.os.Build;
+import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.speech.RecognizerIntent;
 import android.provider.Settings;
 import android.provider.MediaStore;
-import android.net.Uri;
 import android.view.Gravity;
 import android.widget.*;
 
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.Locale;
 
@@ -18,6 +21,9 @@ public class MainActivity extends Activity {
 
     TextView status;
     EditText commandInput;
+
+    final int SPEECH_REQUEST = 100;
+    final int AUDIO_PERMISSION = 200;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -34,7 +40,7 @@ public class MainActivity extends Activity {
         title.setGravity(Gravity.CENTER);
 
         status = new TextView(this);
-        status.setText("Hello! আমি ZARA। Ready to help you.");
+        status.setText("আমি ZARA। তোমার কথা শুনতে প্রস্তুত!");
         status.setTextSize(18);
         status.setGravity(Gravity.CENTER);
 
@@ -44,24 +50,136 @@ public class MainActivity extends Activity {
         Button runButton = new Button(this);
         runButton.setText("RUN COMMAND");
 
+        Button voiceButton = new Button(this);
+        voiceButton.setText("🎤 SPEAK TO ZARA");
+
         layout.addView(title);
         layout.addView(status);
         layout.addView(commandInput);
         layout.addView(runButton);
+        layout.addView(voiceButton);
 
         setContentView(layout);
 
         runButton.setOnClickListener(v -> {
-
             String command = commandInput.getText()
-                    .toString()
-                    .toLowerCase(Locale.ROOT)
-                    .trim();
+                .toString()
+                .toLowerCase(Locale.ROOT)
+                .trim();
 
             if (!command.isEmpty()) {
                 processCommand(command);
             }
         });
+
+        voiceButton.setOnClickListener(v -> checkPermission());
+    }
+
+    private void checkPermission() {
+
+        if (Build.VERSION.SDK_INT >= 23 &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            != PackageManager.PERMISSION_GRANTED) {
+
+            requestPermissions(
+                new String[]{Manifest.permission.RECORD_AUDIO},
+                AUDIO_PERMISSION
+            );
+
+        } else {
+            startListening();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(
+        int requestCode,
+        String[] permissions,
+        int[] grantResults
+    ) {
+        super.onRequestPermissionsResult(
+            requestCode, permissions, grantResults
+        );
+
+        if (requestCode == AUDIO_PERMISSION &&
+            grantResults.length > 0 &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+
+            startListening();
+
+        } else if (requestCode == AUDIO_PERMISSION) {
+
+            status.setText("মাইক্রোফোন ব্যবহারের অনুমতি প্রয়োজন।");
+        }
+    }
+
+    private void startListening() {
+
+        Intent intent = new Intent(
+            RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+        );
+
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+            RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+        );
+
+        intent.putExtra(
+            RecognizerIntent.EXTRA_LANGUAGE,
+            "bn-BD"
+        );
+
+        intent.putExtra(
+            RecognizerIntent.EXTRA_PROMPT,
+            "ZARA-কে নির্দেশ দিন"
+        );
+
+        try {
+
+            status.setText("আমি শুনছি...");
+
+            startActivityForResult(intent, SPEECH_REQUEST);
+
+        } catch (Exception e) {
+
+            status.setText("Voice Recognition পাওয়া যাচ্ছে না।");
+
+            Toast.makeText(this,
+                "Speech service পাওয়া যায়নি",
+                Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    protected void onActivityResult(
+        int requestCode,
+        int resultCode,
+        Intent data
+    ) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        if (requestCode == SPEECH_REQUEST &&
+            resultCode == RESULT_OK &&
+            data != null) {
+
+            ArrayList<String> matches =
+                data.getStringArrayListExtra(
+                    RecognizerIntent.EXTRA_RESULTS
+                );
+
+            if (matches != null && !matches.isEmpty()) {
+
+                String command = matches.get(0);
+
+                commandInput.setText(command);
+
+                status.setText("তুমি বলেছ: " + command);
+
+                processCommand(
+                    command.toLowerCase(Locale.ROOT)
+                );
+            }
+        }
     }
 
     private void processCommand(String command) {
@@ -104,20 +222,26 @@ public class MainActivity extends Activity {
         } else if (command.contains("settings") ||
                    command.contains("সেটিংস")) {
 
-            startActivity(new Intent(Settings.ACTION_SETTINGS));
+            startActivity(
+                new Intent(Settings.ACTION_SETTINGS)
+            );
+
             status.setText("Settings খুলছি।");
 
         } else if (command.contains("wifi") ||
                    command.contains("ওয়াইফাই")) {
 
-            startActivity(new Intent(Settings.ACTION_WIFI_SETTINGS));
-            status.setText("WiFi Settings খুলছি।");
+            startActivity(
+                new Intent(Settings.ACTION_WIFI_SETTINGS)
+            );
+
+            status.setText("Wi-Fi Settings খুলছি।");
 
         } else if (command.contains("time") ||
                    command.contains("সময়")) {
 
             String time = new SimpleDateFormat(
-                    "hh:mm a", Locale.getDefault()
+                "hh:mm a", Locale.getDefault()
             ).format(new Date());
 
             status.setText("এখন সময় " + time);
@@ -126,7 +250,7 @@ public class MainActivity extends Activity {
                    command.contains("তারিখ")) {
 
             String date = new SimpleDateFormat(
-                    "dd-MM-yyyy", Locale.getDefault()
+                "dd-MM-yyyy", Locale.getDefault()
             ).format(new Date());
 
             status.setText("আজকের তারিখ " + date);
@@ -138,29 +262,25 @@ public class MainActivity extends Activity {
 
         } else {
 
-            status.setText("দুঃখিত! এই কমান্ডটি এখনো শিখিনি।");
+            status.setText(
+                "দুঃখিত! এই কমান্ডটি এখনো শিখিনি।"
+            );
         }
 
         commandInput.setText("");
     }
 
-    private void openApp(String packageName, String appName) {
+    private void openApp(
+        String packageName,
+        String appName
+    ) {
 
         Intent intent = getPackageManager()
-                .getLaunchIntentForPackage(packageName);
-
-        if (intent == null &&
-            packageName.equals("com.facebook.lite")) {
-
-            intent = getPackageManager()
-                    .getLaunchIntentForPackage("com.facebook.katana");
-        }
+            .getLaunchIntentForPackage(packageName);
 
         if (intent != null) {
 
-            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             startActivity(intent);
-
             status.setText(appName + " খুলছি।");
 
         } else {
@@ -168,14 +288,16 @@ public class MainActivity extends Activity {
             status.setText(appName + " পাওয়া যায়নি।");
 
             Toast.makeText(this,
-                    appName + " ইনস্টল করা নেই অথবা শনাক্ত করা যাচ্ছে না।",
-                    Toast.LENGTH_LONG).show();
+                appName + " শনাক্ত করা যায়নি।",
+                Toast.LENGTH_SHORT).show();
         }
     }
 
     private void openCamera() {
 
-        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+        Intent intent = new Intent(
+            MediaStore.ACTION_IMAGE_CAPTURE
+        );
 
         if (intent.resolveActivity(getPackageManager()) != null) {
 
@@ -190,22 +312,17 @@ public class MainActivity extends Activity {
 
     private void openGallery() {
 
-        Intent intent = new Intent(Intent.ACTION_VIEW);
+        Intent intent = new Intent(Intent.ACTION_GET_CONTENT);
         intent.setType("image/*");
 
-        if (intent.resolveActivity(getPackageManager()) != null) {
+        try {
 
-            startActivity(intent);
+            startActivityForResult(intent, 300);
             status.setText("Gallery খুলছি।");
 
-        } else {
+        } catch (Exception e) {
 
             status.setText("Gallery পাওয়া যায়নি।");
         }
     }
-    
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-    }
-}
+            }
