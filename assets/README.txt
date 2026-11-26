@@ -1,0 +1,1 @@
+ZARA assets folder
